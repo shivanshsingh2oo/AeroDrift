@@ -1,0 +1,47 @@
+{
+  "resources": [
+    {
+      "id": "internet",
+      "type": "internet",
+      "name": "0.0.0.0/0"
+    },
+    {
+      "id": "subnet-public",
+      "type": "subnet",
+      "name": "Public Subnet"
+    },
+    {
+      "id": "web-server",
+      "type": "ec2",
+      "name": "Web Server"
+    },
+    {
+      "id": "subnet-private",
+      "type": "subnet",
+      "name": "Private Subnet"
+    },
+    {
+      "id": "database",
+      "type": "database",
+      "name": "Private Database"
+    }
+  ],
+  "connections": [
+    {
+      "source": "internet",
+      "target": "subnet-public"
+    },
+    {
+      "source": "subnet-public",
+      "target": "web-server"
+    },
+    {
+      "source": "web-server",
+      "target": "subnet-private"
+    },
+    {
+    "source": "internet",
+    "target": "database"
+  }
+  ]
+}
