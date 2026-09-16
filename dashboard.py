@@ -1,8 +1,8 @@
 import streamlit as st
-import networkx as nx
 
 from core.aws_ingestion import load_mock_aws_data
 from core.topology import build_topology, get_topology_diff
+
 from detection.drift_detector import detect_database_exposure
 from detection.rules import run_security_rules
 
@@ -13,7 +13,7 @@ from remediation.engine import (
 
 
 # ============================================================
-# PAGE CONFIGURATION
+# PAGE CONFIG
 # ============================================================
 
 st.set_page_config(
@@ -38,14 +38,14 @@ st.markdown(
     }
 
     .subtitle {
-        font-size: 20px;
-        margin-bottom: 25px;
+        font-size: 18px;
+        margin-bottom: 20px;
     }
 
     .status-box {
         padding: 20px;
-        border-radius: 10px;
-        margin-bottom: 20px;
+        border-radius: 12px;
+        margin: 15px 0;
     }
 
     .secure {
@@ -69,12 +69,16 @@ st.markdown(
 # ============================================================
 
 st.markdown(
-    '<div class="main-title">🛡️ AeroDrift Security Dashboard</div>',
+    '<div class="main-title">'
+    '🛡️ AeroDrift Security Dashboard'
+    '</div>',
     unsafe_allow_html=True
 )
 
 st.markdown(
-    '<div class="subtitle">Agentic Cloud Topology & Remediation Graph</div>',
+    '<div class="subtitle">'
+    'Agentic Cloud Topology & Remediation Graph'
+    '</div>',
     unsafe_allow_html=True
 )
 
@@ -82,7 +86,7 @@ st.divider()
 
 
 # ============================================================
-# LOAD MOCK CLOUD DATA
+# LOAD CLOUD DATA
 # ============================================================
 
 data = load_mock_aws_data()
@@ -96,7 +100,7 @@ before_graph = build_topology(data)
 
 
 # ============================================================
-# DETECT SECURITY DRIFT
+# DRIFT DETECTION
 # ============================================================
 
 result = detect_database_exposure(
@@ -105,7 +109,7 @@ result = detect_database_exposure(
 
 
 # ============================================================
-# RUN SECURITY RULES
+# SECURITY RULES
 # ============================================================
 
 findings = run_security_rules(
@@ -114,7 +118,7 @@ findings = run_security_rules(
 
 
 # ============================================================
-# DASHBOARD METRICS
+# SECURITY COUNTS
 # ============================================================
 
 critical_count = sum(
@@ -123,46 +127,180 @@ critical_count = sum(
     if finding["severity"] == "CRITICAL"
 )
 
-resource_count = len(data["resources"])
+high_count = sum(
+    1
+    for finding in findings
+    if finding["severity"] == "HIGH"
+)
+
+medium_count = sum(
+    1
+    for finding in findings
+    if finding["severity"] == "MEDIUM"
+)
+
+low_count = sum(
+    1
+    for finding in findings
+    if finding["severity"] == "LOW"
+)
+
+
+# ============================================================
+# SECURITY SCORE
+# ============================================================
+
+security_score = 100
+
+security_score -= critical_count * 40
+security_score -= high_count * 20
+security_score -= medium_count * 10
+security_score -= low_count * 5
+
+security_score = max(
+    0,
+    min(100, security_score)
+)
+
+
+# ============================================================
+# RESOURCE INFORMATION
+# ============================================================
+
+resource_count = len(
+    data["resources"]
+)
 
 connection_count = len(
     before_graph.edges()
 )
 
 
-col1, col2, col3, col4 = st.columns(4)
+# ============================================================
+# SIDEBAR
+# ============================================================
+
+with st.sidebar:
+
+    st.title("🛡️ AeroDrift")
+
+    st.write(
+        "Cloud Security Control Center"
+    )
+
+    st.divider()
+
+    st.metric(
+        "Security Score",
+        f"{security_score}/100"
+    )
+
+    st.metric(
+        "Resources",
+        resource_count
+    )
+
+    st.metric(
+        "Connections",
+        connection_count
+    )
+
+    st.divider()
+
+    st.info(
+        "AeroDrift detects cloud topology "
+        "drift and automatically generates "
+        "remediation actions."
+    )
+
+
+# ============================================================
+# TOP METRICS
+# ============================================================
+
+st.header("📊 Security Overview")
+
+
+col1, col2, col3, col4, col5 = st.columns(5)
 
 
 with col1:
 
     st.metric(
-        label="Security Findings",
-        value=len(findings)
+        "Security Findings",
+        len(findings)
     )
 
 
 with col2:
 
     st.metric(
-        label="Critical",
-        value=critical_count
+        "Critical",
+        critical_count
     )
 
 
 with col3:
 
     st.metric(
-        label="Drift Detected",
-        value="YES" if result["drift_detected"] else "NO"
+        "Drift",
+        "YES"
+        if result["drift_detected"]
+        else "NO"
     )
 
 
 with col4:
 
     st.metric(
-        label="Resources",
-        value=resource_count
+        "Resources",
+        resource_count
     )
+
+
+with col5:
+
+    st.metric(
+        "Security Score",
+        f"{security_score}/100"
+    )
+
+
+st.divider()
+
+
+# ============================================================
+# SECURITY SCORE
+# ============================================================
+
+st.header("🎯 Security Score")
+
+
+if security_score >= 80:
+
+    st.success(
+        f"🟢 Excellent Security Score — "
+        f"{security_score}/100"
+    )
+
+elif security_score >= 60:
+
+    st.warning(
+        f"🟡 Moderate Security Score — "
+        f"{security_score}/100"
+    )
+
+else:
+
+    st.error(
+        f"🔴 Critical Security Risk — "
+        f"{security_score}/100"
+    )
+
+
+st.progress(
+    security_score / 100
+)
 
 
 st.divider()
@@ -185,6 +323,9 @@ if result["drift_detected"]:
 
         <p>{result["message"]}</p>
 
+        <b>Attack Path:</b>
+        {" → ".join(result["path"])}
+
         </div>
         """,
         unsafe_allow_html=True
@@ -199,13 +340,85 @@ else:
         <h3>✅ SYSTEM SECURE</h3>
 
         <p>
-        Private database is not reachable from the internet.
+        Private database is not reachable
+        from the internet.
         </p>
 
         </div>
         """,
         unsafe_allow_html=True
     )
+
+
+# ============================================================
+# SECURITY ANALYTICS
+# ============================================================
+
+st.header("📈 Security Analytics")
+
+
+analytics_col1, analytics_col2 = st.columns(2)
+
+
+# ============================================================
+# SEVERITY CHART
+# ============================================================
+
+with analytics_col1:
+
+    st.subheader(
+        "Severity Breakdown"
+    )
+
+    severity_data = {
+        "Critical": critical_count,
+        "High": high_count,
+        "Medium": medium_count,
+        "Low": low_count
+    }
+
+    st.bar_chart(
+        severity_data
+    )
+
+
+# ============================================================
+# SCORE BREAKDOWN
+# ============================================================
+
+with analytics_col2:
+
+    st.subheader(
+        "Security Posture"
+    )
+
+    st.metric(
+        "Current Security Score",
+        f"{security_score}/100"
+    )
+
+    st.progress(
+        security_score / 100
+    )
+
+    st.write(
+        f"🔴 Critical: {critical_count}"
+    )
+
+    st.write(
+        f"🟠 High: {high_count}"
+    )
+
+    st.write(
+        f"🟡 Medium: {medium_count}"
+    )
+
+    st.write(
+        f"🔵 Low: {low_count}"
+    )
+
+
+st.divider()
 
 
 # ============================================================
@@ -224,19 +437,29 @@ if findings:
         if severity == "CRITICAL":
 
             st.error(
-                f"🔴 {finding['rule']} — {severity}"
+                f"🔴 {finding['rule']} — "
+                f"{severity}"
             )
 
         elif severity == "HIGH":
 
             st.warning(
-                f"🟠 {finding['rule']} — {severity}"
+                f"🟠 {finding['rule']} — "
+                f"{severity}"
+            )
+
+        elif severity == "MEDIUM":
+
+            st.warning(
+                f"🟡 {finding['rule']} — "
+                f"{severity}"
             )
 
         else:
 
             st.info(
-                f"🔵 {finding['rule']} — {severity}"
+                f"🔵 {finding['rule']} — "
+                f"{severity}"
             )
 
         st.write(
@@ -266,7 +489,8 @@ st.divider()
 st.header("🌐 Cloud Topology")
 
 st.write(
-    "Visual representation of the current cloud network."
+    "Visual representation of the current "
+    "cloud network topology."
 )
 
 
@@ -289,27 +513,27 @@ digraph {
     ];
 
     internet [
-        label="🌐 Internet",
+        label="Internet",
         fillcolor="#E3F2FD"
     ];
 
     subnet_public [
-        label="📦 Public Subnet",
+        label="Public Subnet",
         fillcolor="#E8F5E9"
     ];
 
     web_server [
-        label="🖥️ Web Server",
+        label="Web Server",
         fillcolor="#E8F5E9"
     ];
 
     subnet_private [
-        label="🔒 Private Subnet",
+        label="Private Subnet",
         fillcolor="#E8F5E9"
     ];
 
     database [
-        label="🗄️ Database",
+        label="Database",
         fillcolor="#FFEBEE",
         color="#C62828",
         penwidth=2
@@ -333,6 +557,7 @@ digraph {
         fontcolor="#C62828",
         penwidth=3
     ];
+
 }
 """
 
@@ -343,10 +568,23 @@ st.graphviz_chart(
 )
 
 
-st.caption(
-    f"Resources: {resource_count} | "
-    f"Connections: {connection_count}"
-)
+topology_col1, topology_col2 = st.columns(2)
+
+
+with topology_col1:
+
+    st.metric(
+        "Cloud Resources",
+        resource_count
+    )
+
+
+with topology_col2:
+
+    st.metric(
+        "Network Connections",
+        connection_count
+    )
 
 
 st.divider()
@@ -369,9 +607,15 @@ if remediation_plan:
     for item in remediation_plan:
 
         st.warning(
-            f"**Rule:** {item['rule']}\n\n"
-            f"**Severity:** {item['severity']}\n\n"
-            f"**Action:** {item['action']}"
+            f"""
+**Rule:** {item["rule"]}
+
+**Severity:** {item["severity"]}
+
+**Message:** {item["message"]}
+
+**Action:** {item["action"]}
+"""
         )
 
 else:
@@ -379,6 +623,9 @@ else:
     st.success(
         "No remediation required."
     )
+
+
+st.divider()
 
 
 # ============================================================
@@ -390,23 +637,31 @@ st.header("🚀 Auto Remediation")
 
 if remediation_plan:
 
+    st.write(
+        "Execute the generated remediation "
+        "plan against the mock cloud topology."
+    )
+
     if st.button(
         "🚀 Run Auto Remediation",
         use_container_width=True
     ):
 
-        execution_results = execute_remediation_plan(
-            data,
-            remediation_plan
+        execution_results = (
+            execute_remediation_plan(
+                data,
+                remediation_plan
+            )
         )
 
+
         st.success(
-            "Remediation executed successfully."
+            "Remediation execution completed."
         )
 
 
         # ====================================================
-        # SHOW EXECUTION RESULTS
+        # EXECUTION RESULTS
         # ====================================================
 
         for execution in execution_results:
@@ -420,13 +675,13 @@ if remediation_plan:
             else:
 
                 st.error(
-                    f"❌ Remediation failed for "
-                    f"{execution['rule']}"
+                    f"❌ Remediation failed: "
+                    f"{execution.get('rule', 'Unknown rule')}"
                 )
 
 
         # ====================================================
-        # BUILD FIXED TOPOLOGY
+        # FIXED TOPOLOGY
         # ====================================================
 
         fixed_graph = build_topology(
@@ -435,7 +690,7 @@ if remediation_plan:
 
 
         # ====================================================
-        # VERIFY REMEDIATION
+        # VERIFICATION
         # ====================================================
 
         verification = detect_database_exposure(
@@ -482,10 +737,10 @@ if remediation_plan:
         )
 
 
-        col1, col2 = st.columns(2)
+        diff_col1, diff_col2 = st.columns(2)
 
 
-        with col1:
+        with diff_col1:
 
             st.subheader(
                 "🔴 Removed Connections"
@@ -511,7 +766,7 @@ if remediation_plan:
                 )
 
 
-        with col2:
+        with diff_col2:
 
             st.subheader(
                 "🟢 Added Connections"
@@ -536,7 +791,6 @@ if remediation_plan:
                     "No new connections."
                 )
 
-
 else:
 
     st.info(
@@ -545,11 +799,71 @@ else:
     )
 
 
+st.divider()
+
+
+# ============================================================
+# SECURITY SUMMARY
+# ============================================================
+
+st.header("📋 Security Summary")
+
+
+summary_col1, summary_col2 = st.columns(2)
+
+
+with summary_col1:
+
+    st.write(
+        f"**Security Score:** "
+        f"{security_score}/100"
+    )
+
+    st.write(
+        f"**Total Findings:** "
+        f"{len(findings)}"
+    )
+
+    st.write(
+        f"**Critical Findings:** "
+        f"{critical_count}"
+    )
+
+    st.write(
+        f"**High Findings:** "
+        f"{high_count}"
+    )
+
+
+with summary_col2:
+
+    st.write(
+        f"**Medium Findings:** "
+        f"{medium_count}"
+    )
+
+    st.write(
+        f"**Low Findings:** "
+        f"{low_count}"
+    )
+
+    st.write(
+        f"**Cloud Resources:** "
+        f"{resource_count}"
+    )
+
+    st.write(
+        f"**Network Connections:** "
+        f"{connection_count}"
+    )
+
+
+st.divider()
+
+
 # ============================================================
 # FOOTER
 # ============================================================
-
-st.divider()
 
 st.caption(
     "AeroDrift • Agentic Cloud Security • "
