@@ -29,6 +29,47 @@ console = Console()
 
 
 # ============================================================
+# TOPOLOGY DASHBOARD
+# ============================================================
+
+def show_topology(graph, drift_path=None):
+
+    table = Table(
+        title="AeroDrift Cloud Topology"
+    )
+
+    table.add_column("Source")
+    table.add_column("Connection")
+    table.add_column("Target")
+    table.add_column("Status")
+
+    drift_path = drift_path or []
+
+    for source, target in graph.edges():
+
+        is_drift = (
+            source in drift_path
+            and target in drift_path
+            and drift_path.index(target)
+            == drift_path.index(source) + 1
+        )
+
+        if is_drift:
+            status = "[bold red]DRIFT[/bold red]"
+        else:
+            status = "[green]SAFE[/green]"
+
+        table.add_row(
+            source,
+            "→",
+            target,
+            status
+        )
+
+    console.print(table)
+
+
+# ============================================================
 # 1. LOAD MOCK AWS DATA
 # ============================================================
 
@@ -50,6 +91,13 @@ before_graph = build_topology(data)
 
 result = detect_database_exposure(graph)
 
+print("\n")
+
+show_topology(
+    graph,
+    result["path"]
+)
+
 
 # ============================================================
 # 4. RUN SECURITY RULES
@@ -59,7 +107,9 @@ findings = run_security_rules(graph)
 
 print("\nSecurity Findings:")
 
-findings_table = Table(title="Security Findings")
+findings_table = Table(
+    title="Security Findings"
+)
 
 findings_table.add_column("Rule")
 findings_table.add_column("Severity")
@@ -68,6 +118,7 @@ findings_table.add_column("Path")
 
 
 for finding in findings:
+
     findings_table.add_row(
         finding["rule"],
         finding["severity"],
@@ -83,11 +134,14 @@ console.print(findings_table)
 # 5. BUILD REMEDIATION PLAN
 # ============================================================
 
-remediation_plan = build_remediation_plan(findings)
+remediation_plan = build_remediation_plan(
+    findings
+)
 
 print("\nRemediation Plan:")
 
 for item in remediation_plan:
+
     print(item)
 
 
@@ -130,6 +184,7 @@ execution_results = execute_remediation_plan(
 print("\nRemediation Execution:")
 
 for execution in execution_results:
+
     print(execution)
 
 
@@ -149,6 +204,7 @@ verification = detect_database_exposure(
 )
 
 print("\nVerification Result:")
+
 print(verification)
 
 
@@ -162,6 +218,7 @@ diff = get_topology_diff(
 )
 
 print("\nTopology Diff:")
+
 print(
     "Removed connections:",
     diff["removed_connections"]
@@ -185,6 +242,7 @@ report = generate_incident_report(
 )
 
 print("\n")
+
 print(report)
 
 
